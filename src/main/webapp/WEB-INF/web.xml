@@ -3,4 +3,38 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
+    <context-param>
+        <param-name>dev.cbq.THEME</param-name>
+        <param-value>blue</param-value>
+    </context-param>
+
+    <welcome-file-list>
+        <welcome-file>index.html</welcome-file>
+    </welcome-file-list>
+
+    <error-page>
+        <error-code>401</error-code>
+        <location>/WEB-INF/error-pages/unauthorized.html</location>
+    </error-page>
+    <error-page>
+        <error-code>403</error-code>
+        <location>/WEB-INF/error-pages/unauthenticated.html</location>
+    </error-page>
+    <error-page>
+        <error-code>404</error-code>
+        <location>/WEB-INF/error-pages/not-found.html</location>
+    </error-page>
+    <error-page>
+        <error-code>500</error-code>
+        <location>/WEB-INF/error-pages/general-error.html</location>
+    </error-page>
+    <!--    <error-page>
+            <exception-type>jakarta.faces.application.ViewExpiredException</exception-type>
+            <location>/WEB-INF/error-pages/view-expired.html</location>
+        </error-page>-->
+    <error-page>
+        <!-- No error-code or exception-type, i.e. this will match any other HTTP status than defined above -->
+        <location>/WEB-INF/error-pages/unknown-error.html</location>
+    </error-page>
+
 </web-app>
