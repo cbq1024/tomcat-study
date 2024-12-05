@@ -1,5 +1,5 @@
 *.pdf
-
+.fastRequest
 
 target/
 !.mvn/wrapper/maven-wrapper.jar
