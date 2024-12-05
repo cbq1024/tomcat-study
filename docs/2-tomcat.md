@@ -161,3 +161,7 @@ The Tomcat Manager is covered in its [own manual page](https://tomcat.apache.org
 ![image-20241205152442141](../assets/image-20241205152442141.png)
 
 ![image-20241205152459833](../assets/image-20241205152459833.png)
+
+![image-20241205153924455](./assets/image-20241205153924455.png)
+
+![image-20241205153935990](./assets/image-20241205153935990.png)

@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>dev.cbq</groupId>
-    <artifactId>tomcat-study</artifactId>
+    <artifactId>demo01-quickstart</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <name>tomcat-study</name>
+    <name>demo01-quickstart</name>
     <packaging>war</packaging>
 
     <properties>

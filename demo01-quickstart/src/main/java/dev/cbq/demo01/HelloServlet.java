@@ -1,4 +1,4 @@
-package dev.cbq;
+package dev.cbq.demo01;
 
 import jakarta.servlet.ServletContext;
 import jakarta.servlet.annotation.WebServlet;
