@@ -1,5 +1,6 @@
 package dev.cbq.demo02.filters;
 
+import jakarta.servlet.DispatcherType;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.FilterConfig;
 import jakarta.servlet.ServletException;
@@ -11,11 +12,42 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import java.io.IOException;
 
-@WebFilter(filterName = "helloFilter", urlPatterns = "/*", initParams = {
-        @WebInitParam(name = "k1", value = "v1"),
-        @WebInitParam(name = "k2", value = "v2")
-})
+@WebFilter(
+        description = "HelloFilter.init with @WebFilter",
+        displayName = "helloFilter",
+        filterName = "helloFilter",
+//        value = "/*",
+        urlPatterns = "/*",
+        initParams = {
+                @WebInitParam(name = "k1", value = "v1"),
+                @WebInitParam(name = "k2", value = "v2")
+        },
+        servletNames = {"hello-servlet"},
+        dispatcherTypes = {DispatcherType.ASYNC},
+        asyncSupported = true
+)
 public class HelloFilter extends HttpFilter {
+
+
+    public HelloFilter() {
+        // ! filter init with tomcat must have no construct (reflectively )
+        // throw new IllegalAccessException("can not reflectively this class");
+    }
+
+    /**
+     * ! Tomcat 持有该 Filter 对象后 利用该对象 调用 init 方法 [并传入 FilterConfig]
+     * ! Filter init 初始化方法没有延迟概念 [Servlet 则可延迟到第一次请求]
+     *
+     * @param config the <code>FilterConfig</code> object that contains configuration information for this filter
+     */
+    @Override
+    public void init(FilterConfig config) {
+        System.out.println("HelloFilter.init with @WebFilter ");
+        config.getInitParameterNames()
+                .asIterator()
+                .forEachRemaining((key) ->
+                        System.out.println(key + " = " + config.getInitParameter(key)));
+    }
 
     /**
      * ! doFilter 仅当该 Filter 匹配到请求时执行 | FilterChain 具有放行机制 [规范保证]
@@ -32,21 +64,6 @@ public class HelloFilter extends HttpFilter {
         System.out.println(req.getRequestURI());
         System.out.println("HelloFilter.doFilter");
         chain.doFilter(req, res);
-    }
-
-    /**
-     * ! Tomcat 持有该 Filter 对象后 利用该对象 调用 init 方法 [并传入 FilterConfig]
-     * ! Filter init 初始化方法没有延迟概念 [Servlet 则可延迟到第一次请求]
-     *
-     * @param config the <code>FilterConfig</code> object that contains configuration information for this filter
-     */
-    @Override
-    public void init(FilterConfig config) {
-        config.getInitParameterNames()
-                .asIterator()
-                .forEachRemaining((key) ->
-                        System.out.println(key + " = " + config.getInitParameter(key)));
-        System.out.println("HelloFilter.init");
     }
 
     /**

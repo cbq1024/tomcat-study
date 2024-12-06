@@ -10,23 +10,27 @@ public class ApplicationContextListener implements ServletContextListener {
 
     @Override
     public void contextInitialized(ServletContextEvent sce) {
-        System.out.println("ApplicationContextListener.contextInitialized");
         ServletContext context = sce.getServletContext();
-        System.out.println("context = " + context);
+        System.out.println("ApplicationContextListener.contextInitialized the context = " + context);
 
-        System.out.println("the filters [in context]");
         context.getFilterRegistrations().forEach((k, v) -> {
+            System.out.println("============= filters ================");
             System.out.println("[filter] k = " + k);
             System.out.println("[filter] v = " + v.getClassName());
-            System.out.println("[filter] mapping = " + v.getUrlPatternMappings());
+            System.out.println("[filter] url pattern mapping = " + v.getUrlPatternMappings());
+            System.out.println("[filter] servlet name mapping = " + v.getServletNameMappings());
         });
+        System.out.println("============= filters ================  \n");
 
-        System.out.println("the servlets [in context]");
+
         context.getServletRegistrations().forEach((k, v) -> {
+            System.out.println("============= servlets ================");
             System.out.println("[servlet] k = " + k);
             System.out.println("[servlet] v = " + v.getClassName());
             System.out.println("[servlet] mapping = " + v.getMappings());
         });
+        System.out.println("============= servlets ================");
+
 
     }
 

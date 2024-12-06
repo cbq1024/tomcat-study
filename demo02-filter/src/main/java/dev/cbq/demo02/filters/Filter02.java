@@ -13,7 +13,11 @@ public class Filter02 extends HttpFilter {
 
     @Override
     public void init(FilterConfig config) throws ServletException {
-        System.out.println("Filter02.init");
+        System.out.println("Filter02.init with SCI ");
+        config.getInitParameterNames()
+                .asIterator()
+                .forEachRemaining((key) ->
+                        System.out.println(key + " = " + config.getInitParameter(key)));
     }
 
     @Override
