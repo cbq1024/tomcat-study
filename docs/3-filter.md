@@ -492,3 +492,289 @@ public class ServletContainerInitializerImpl implements ServletContainerInitiali
 
 
 
+
+
+# 单代理 Filter
+
+被代理 Filter 无需被规范约定注册给规范实现者 但需保证代理 Filter 规范机制，被代理 Filter 对象可在他处创建 按照约定能够使得 FilterProxy 获取其对象即可
+
+```java
+@WebFilter("/*")
+public class FilterSingleProxy extends HttpFilter {
+
+    public static final String PROXY_FILTER_RUNTIME_INSTANCE_BY_SERVLET_CONTEXT = "PROXY_FILTER_RUNTIME_INSTANCE_BY_SERVLET_CONTEXT";
+    private Filter filter;
+
+    public FilterSingleProxy() {
+    }
+
+    public FilterSingleProxy(Filter filter) {
+        Objects.requireNonNull(filter);
+        this.filter = filter;
+    }
+
+    @Override
+    protected void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain) throws IOException, ServletException {
+        System.out.println("FilterSingleProxy.doFilter");
+        if (this.filter != null) {
+            this.filter.doFilter(req, res, chain);
+        }
+        ServletContext context = getServletContext();
+        Filter target = (Filter) context.getAttribute(PROXY_FILTER_RUNTIME_INSTANCE_BY_SERVLET_CONTEXT);
+        if (target == null) {
+            chain.doFilter(req, res);
+            return;
+        }
+        target.doFilter(req, res, chain);
+    }
+}
+```
+
+```java
+@WebListener
+public class ApplicationContextListener implements ServletContextListener {
+
+    private void registerSingleProxyFilter(ServletContextEvent sce) {
+        ServletContext context = sce.getServletContext();
+        String key = FilterSingleProxy.PROXY_FILTER_RUNTIME_INSTANCE_BY_SERVLET_CONTEXT;
+        Filter value = new Filter03();
+        context.setAttribute(key, value);
+        System.out.println("[successful] ApplicationContextListener.registerSingleProxyFilter the key is " + key + " and value is " + value);
+    }
+}
+```
+
+![image-20241209100719917](../assets/image-20241209100719917.png)
+
+![image-20241209100733247](../assets/image-20241209100733247.png)
+
+![image-20241209100746071](../assets/image-20241209100746071.png)
+
+filter03 表现在运行时
+
+![image-20241209100856291](../assets/image-20241209100856291.png)
+
+# 多代理 Filter
+
+目标: 被代理 Filter[] 无需被规范约定注册给规范实现者 但需保证代理 Filter[] 规范机制
+
+## 链实现
+
+> [!TIP]
+>
+> 不能直接遍历集合 Filter 进行生命周期编码调用 必须处理放行逻辑 (因为具体的方形操作只能由 servler 容器操作如 tomcat)
+
+```java
+public class MultiFilterProxy extends HttpFilter {
+
+    private final List<Filter> filters;
+
+    public MultiFilterProxy(List<Filter> filters) {
+        this.filters = filters;
+    }
+
+    @Override
+    protected void doFilter(HttpServletRequest req, HttpServletResponse res, FilterChain chain) throws IOException, ServletException {
+        System.out.println("MultiFilterProxy.doFilter");
+        new VirtualFilterChain(filters, chain).doFilter(req, res);
+    }
+
+    @Override
+    public void init() throws ServletException {
+        System.out.println("MultiFilterProxy.init with SCI");
+    }
+
+    @Override
+    public void destroy() {
+        System.out.println("MultiFilterProxy.destroy");
+    }
+
+    static class VirtualFilterChain implements FilterChain {
+
+        private int position = 0;
+
+        private final List<Filter> filters;
+        private final FilterChain chain;
+
+        VirtualFilterChain(List<Filter> filters, FilterChain chain) {
+            this.filters = filters;
+            this.chain = chain;
+        }
+
+        @Override
+        public void doFilter(ServletRequest request, ServletResponse response) throws IOException, ServletException {
+            if (this.position == this.filters.size()) {
+                this.chain.doFilter(request, response);
+                return;
+            }
+            this.position++;
+            Filter nextFilter = filters.get(this.position - 1);
+            nextFilter.doFilter(request, response, this);
+        }
+    }
+}
+```
+
+```java
+List<Filter> filters = List.of(
+        new Filter04(),
+        new Filter05(),
+        new Filter06());
+
+FilterRegistration.Dynamic multiFilterProxy = ctx.addFilter(
+        "multiFilterProxy",
+        new MultiFilterProxy(filters));
+
+multiFilterProxy.addMappingForUrlPatterns(
+        EnumSet.allOf(DispatcherType.class),
+        false,
+        "/*");
+```
+
+![image-20241209103055054](../assets/image-20241209103055054.png)
+
+## Filter 链编排
+
+Filter 链编排支持选择 Filter 加入 [内部 | 自定义] 保证内部 Filter 的执行顺序
+
+```java
+FilterRegistration.Dynamic multiFilterProxy = ctx.addFilter(
+                "multiFilterProxy",
+                new MultiFilterProxy(new DefaultProxyFilterChain()));
+
+        multiFilterProxy.addMappingForUrlPatterns(
+                EnumSet.allOf(DispatcherType.class),
+                false,
+                "/*");
+```
+
+```java
+public class HttpFilterBuilder {
+
+    private final FilterRegisterOrder filterRegisterOrder = new FilterRegisterOrder();
+    private final List<OrderFilter> orderFilters = new ArrayList<>();
+
+    public void addFilter(Filter filter) {
+        Integer order = filterRegisterOrder.getOrder(filter.getClass());
+        if (order == null) {
+            throw new IllegalStateException("filter instance is not inner order list.");
+        }
+        OrderFilter orderFilter = new OrderFilter(filter, order);
+        orderFilters.add(orderFilter);
+    }
+
+    public void addFilterAfter(Filter filter, Class<? extends Filter> filterClass) {
+        Integer order = filterRegisterOrder.getOrder(filterClass);
+        OrderFilter orderFilter = new OrderFilter(filter, order + 1);
+        orderFilters.add(orderFilter);
+    }
+
+    public void addFilterBefore(Filter filter, Class<? extends Filter> filterClass) {
+        Integer order = filterRegisterOrder.getOrder(filterClass);
+        OrderFilter orderFilter = new OrderFilter(filter, order - 1);
+        orderFilters.add(orderFilter);
+    }
+
+    public List<Filter> build() {
+        return orderFilters
+                .stream()
+                .sorted(Comparator.comparing(OrderFilter::getOrder))
+                .map(OrderFilter::getFilter)
+                .toList();
+    }
+
+    static class FilterRegisterOrder {
+        private final Map<String, Integer> filterMapToOrder = new HashMap<>();
+
+        public FilterRegisterOrder() {
+            Step step = new Step(100, 100);
+            put(Filter04.class, step.next());
+            put(Filter05.class, step.next());
+            put(Filter06.class, step.next());
+            put(Filter07.class, step.next());
+            put(Filter08.class, step.next());
+            put(Filter09.class, step.next());
+        }
+
+        public void put(Class<? extends Filter> filterClass, Integer order) {
+            filterMapToOrder.putIfAbsent(filterClass.getName(), order);
+        }
+
+        public Integer getOrder(Class<?> filterClass) {
+            while (filterClass != null) {
+                Integer order = filterMapToOrder.get(filterClass.getName());
+                if (order != null) {
+                    return order;
+                }
+                filterClass = filterClass.getSuperclass();
+            }
+            return null;
+        }
+    }
+
+    static class Step {
+        private int value;
+        private final int step;
+
+        public Step(int value, int step) {
+            this.value = value;
+            this.step = step;
+        }
+
+        public int next() {
+            int current = this.value;
+            this.value += this.step;
+            return current;
+        }
+    }
+
+    interface Order {
+        int getOrder();
+    }
+
+    static class OrderFilter extends HttpFilter implements Order {
+        private final Filter filter;
+        private final int order;
+
+        public OrderFilter(Filter filter, int order) {
+            this.filter = filter;
+            this.order = order;
+        }
+
+        @Override
+        protected void doFilter(HttpServletRequest request,
+                                HttpServletResponse response,
+                                FilterChain chain) throws IOException,
+                ServletException {
+            filter.doFilter(request, response, chain);
+        }
+
+        public int getOrder() {
+            return order;
+        }
+
+        public Filter getFilter() {
+            return filter;
+        }
+    }
+}
+```
+
+```java
+public interface ProxyFilterChain {
+    List<Filter> getFilters();
+}
+public class DefaultProxyFilterChain implements ProxyFilterChain {
+    @Override
+    public List<Filter> getFilters() {
+        HttpFilterBuilder builder = new HttpFilterBuilder();
+        builder.addFilter(new Filter07());
+        builder.addFilterAfter(new Filter08(), Filter04.class);
+        builder.addFilterBefore(new Filter09(), Filter06.class);
+        // 8 9 7
+        return builder.build();
+    }
+}
+```
+
+![image-20241209111333866](../assets/image-20241209111333866.png)
